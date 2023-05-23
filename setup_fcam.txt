@@ -1,0 +1,23 @@
+Instructions :
+
+1) conda create -n fcam python=3.7 (don't go for higher versions; sth called 'linux.distribution' is removed, which causes errors)
+2) conda activate fcam
+3) conda install -c intel mkl_fft
+4) conda install -c intel mkl_random=1.2.1
+
+Next, install Swig and then build and setup CRF :
+
+4) cd dlib/crf/crfwrapper/bilateralfilter
+5) swig -python -c++ bilateralfilter.i
+6) python setup.py install
+
+Now, you'll need to install dependencies from 'dependencies/requirements.txt'. But before that : 
+
+7) Remove two references which go by '@ file\ in the .txt file.
+8) Set mkl-random version to 1.2.1 (as version 1.1.1 is no longer available on conda archive)
+
+Then, run :
+
+7) cd ~/yourdir/fcam-wsol/
+8) pip install --ignore-installed tbb (this package is somewhat important; it cannot be uninstalled by pip so this command prevents the next command from 				overwriting the already  installed version)
+8) pip install -r dependencies/requirements.txt
