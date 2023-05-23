@@ -1,0 +1,2 @@
+1) NameError: name '_C' is not defined
+Sol : factory resetting the runtime and then rerunning the import without any changes
