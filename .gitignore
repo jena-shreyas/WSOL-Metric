@@ -1,5 +1,3 @@
 tokens.txt
-dataset/
-code/Similarity-Visualization/faces/
-code/Similarity-Visualization/hotels/
-code/Similarity-Visualization/*tar.gz
+data/
+code/Similarity-Visualization/data/
