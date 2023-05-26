@@ -1,2 +1,20 @@
 1) NameError: name '_C' is not defined
 Sol : factory resetting the runtime and then rerunning the import without any changes
+
+2) nvcc --version works but nvidia-smi gives "not installed"
+Sol : 
+
+	Run the following commands to remove everything NVIDIA, and then install the NVIDIA drivers : 
+
+	    1. sudo apt install --reinstall gcc
+ 	    2. sudo apt-get --purge -y remove 'nvidia*'
+	    3. sudo apt install nvidia-driver-525 (or any other new version) 
+	    4. sudo reboot
+	    
+	Next, you'll see nvidia-smi work but nvcc --version stops working. This is bcoz nvidia-cuda-toolkit was deleted, which is needed for CUDA to run.
+	
+	Now, install nvidia-cuda-toolkit using :
+	
+	    sudo apt install nvidia-cuda-toolkit
+	    
+	Hopefully, both nvidia-smi and nvcc --version will work after that.

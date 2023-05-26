@@ -44,17 +44,18 @@ def get_device(args):
     Return:
         torch.device() object.
     """
-    if "HOST_XXX" in os.environ.keys():
-        if os.environ['HOST_XXX'] in ['lab', 'gsys', 'ESON']:
-            device = torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu")
-        else:
-            raise ValueError("Unknown host.")
+    # if "HOST_XXX" in os.environ.keys():
+    #     if os.environ['HOST_XXX'] in ['lab', 'gsys', 'ESON']:
+    #         device = torch.device(
+    #             "cuda:0" if torch.cuda.is_available() else "cpu")
+    #     else:
+    #         raise ValueError("Unknown host.")
 
-    elif "CC_CLUSTER" in os.environ.keys():
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    else:
-        raise ValueError("Unknown host.")
+    # elif "CC_CLUSTER" in os.environ.keys():
+    #     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # else:
+    #     raise ValueError("Unknown host.") 
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     if torch.cuda.is_available():
         torch.cuda.set_device(0)

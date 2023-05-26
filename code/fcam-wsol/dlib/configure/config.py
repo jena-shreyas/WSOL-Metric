@@ -28,7 +28,7 @@ def configure_data_paths(args, dsname=None):
 
 
 def get_root_wsol_dataset():
-    baseurl = None
+    baseurl = '/home/shreyas/Desktop/Project/data/dataset'
     if "HOST_XXX" in os.environ.keys():
         if os.environ['HOST_XXX'] == 'laptop':
             baseurl = "{}/datasets".format(os.environ["EXDRIVE"])
