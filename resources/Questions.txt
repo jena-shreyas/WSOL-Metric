@@ -1,3 +1,8 @@
 1) Why do Siamese nets need to have two identical networks ? Can't the same feature representation computation be done using just one of them, and the resulting metric finding done likewise ?
+
 2) In FCAMs, won't the pixel-level weak supervision be too slow for training, especially in videos with lots of frames ?
+
 3) Suppose that the CNN, in order to detect a cat, looks for features like "pointed ears" among others - and assume that one of the last feature maps is dedicated to localizing such pointed ear occurrences in the image. Now, if the image is such that the "pointed ear" is present in an entirely different position than the expected natural position (say, the pointed ear in our image lies at some point distant from the cat's head) - the last feature map for pointed ear still holds positional information regarding its location - but on performing GAP this info is lost, so won't the model tend to incorrectly classify the image as a cat even though the ear is out of place! Isn't this an issue with CAMs ?
+
+4) Side qn : 
+Why can't CNNs be used as is for image segmentation ? Why do we need to upsample the O/P of the downsampled layers of CNN - why doesn't just some upscaling technique work here ?
