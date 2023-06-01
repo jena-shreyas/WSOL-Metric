@@ -1,3 +1,5 @@
 tokens.txt
-data/
+data/dataset
+data/metadata
 code/Similarity-Visualization/data/
+code/fcam-wsol/
