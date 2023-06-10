@@ -1,0 +1,20 @@
+For person Re-ID from video, the following things need to be sorted :
+
+1. Using different video frames, either apply an image retrieval model to each of them separately OR try some way of aggregating each of them based on the temporal information to create a single unified representation that will be used for image retrieval.
+
+Things to note for each approach :
+
+1) Separate :
+
+1. Applying image retrieval separately per frame will be resource-intensive
+2. Chances of low agreement regarding the person identified for each image
+
+2) Aggregate : 
+
+1. Aggregation method must either aggregate images or CAMs (but, for metric learning based approaches like ours there won't be any FC layers to create CAMs !)
+2. One representation - 1 person Re-ID step (efficient)
+
+NOTE : 
+Maybe need to look at T-CAM, CoLo-CAM for temporal aggregation methods in video
+
+
