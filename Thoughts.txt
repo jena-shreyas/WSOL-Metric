@@ -16,5 +16,3 @@ Things to note for each approach :
 
 NOTE : 
 Maybe need to look at T-CAM, CoLo-CAM for temporal aggregation methods in video
-
-

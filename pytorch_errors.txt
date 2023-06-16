@@ -18,3 +18,24 @@ Sol :
 	    sudo apt install nvidia-cuda-toolkit
 	    
 	Hopefully, both nvidia-smi and nvcc --version will work after that.
+
+
+3) How to distribute code across multiple GPUs using nn.DataParallel ?
+
+Sol :
+
+	Setup the model in the following manner :
+	
+	device_ids = [0, 1]			# specifies the list of GPUs that you'll use
+
+	model = resnet18(pretrained=True)
+	model = nn.DataParallel(model, device_ids=device_ids)	# pass the GPU list to the DataParallel method
+	
+	# next, by convention, all tensors and model itself must be dumped on the first device in the list, which acts as a staging area - it distibutes the load to other GPUs and accumulates their results and sends it back.
+	
+	model.to(f'cuda:{device_ids[0]}')
+	
+	Now, for any input tensor passed to the model, dump it to the 0th device as well :	
+	input_tensor.to(f'cuda:{device_ids[0]}')		
+	
+	
