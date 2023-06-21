@@ -19,7 +19,6 @@ random.seed(42)
 np.random.seed(42)
 
 
-
 def sample_triplets(image_dir, num_triplets):
 
     '''Randomly sample triplets from a directory of images'''
@@ -177,13 +176,13 @@ def compute_and_save_embeddings(model, inp_path : str, out_path : str, device_id
 
 
 
-def stylianou(model, img1_path: str, img2_path: str, save_path: str, device_ids: list): 
+def stylianou(model, img1_path: str, img2_path: str, hmap_path: str, overlay_path: str, device_ids: list): 
     '''
         Separate definition for CUB dataset, with only query-heatmap overlay as output.
     '''
     img1_filename = img1_path.split("/")[-1][:-4]
-    img1 = read_image(img1_path).to(f'cuda:{device_ids[0]}')
-    img2 = read_image(img2_path).to(f'cuda:{device_ids[0]}')
+    img1 = read_image(img1_path, mode=ImageReadMode.RGB).to(f'cuda:{device_ids[0]}')
+    img2 = read_image(img2_path, mode=ImageReadMode.RGB).to(f'cuda:{device_ids[0]}')
 
     # Preprocess
     img1_norm = normalize(resize(img1, (224, 224)) / 255., [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -203,18 +202,27 @@ def stylianou(model, img1_path: str, img2_path: str, save_path: str, device_ids:
 
     dummy_arr = np.zeros((224, 224, 3))
 
-    img1_out = combine_image_and_heatmap(dummy_arr, similarity1)  # overlay heatmap on image
+    img1_dummy_out = combine_image_and_heatmap(dummy_arr, similarity1)  # overlay heatmap on black image
+    img1_ = resize(img1, (224, 224)).permute(1, 2, 0).detach().cpu().numpy()
+    img1_out = combine_image_and_heatmap(img1_, similarity1)  # overlay heatmap on original image
 
+    overlay_dummy_img = img1_dummy_out[:, :, :3]
     overlay_img = img1_out[:, :, :3]
-    sim_path = save_path + "/" + "{}.jpg".format(img1_filename)
-    cv2.imwrite(sim_path, overlay_img)
+    dummy_path = hmap_path + "/" + "{}.jpg".format(img1_filename)
+    overlay_path = overlay_path + "/" + "{}.jpg".format(img1_filename)
+    cv2.imwrite(dummy_path, overlay_dummy_img)
+    cv2.imwrite(overlay_path, overlay_img)
 
 
 
 # function to retrieve the query embeddings, compute the cosine similarity with all the gallery embeddings, return the top 1 results and save whether top-1 class matches or not
-def retrieve_visualize(img_path : str, emb_path : str, vis_path: str, class_dict: dict, csv_path: str):
+def retrieve_visualize(model, img_path : str, emb_path : str, vis_path: str, class_dict: dict, csv_path: str, device_ids : list):
+
     # create output directories
-    os.makedirs(vis_path, exist_ok=True)
+    hmap_path = vis_path + "/heatmaps"
+    overlay_path = vis_path + "/overlayed"
+    os.makedirs(hmap_path, exist_ok=True)
+    os.makedirs(overlay_path, exist_ok=True)
 
     query_path = emb_path + "/query"
     gallery_path = emb_path + "/gallery"
@@ -224,14 +232,14 @@ def retrieve_visualize(img_path : str, emb_path : str, vis_path: str, class_dict
     
     query_files = os.listdir(query_path)
     for query_file in query_files:
-        query_emb = torch.load(query_path + "/" + query_file)
+        query_emb = torch.load(query_path + "/" + query_file).to(f'cuda:{device_ids[0]}')
         gallery_dirnames = os.listdir(gallery_path)
         max_sim = -1
         max_file_path = ""
         for dirname in gallery_dirnames:
             file_names = os.listdir(gallery_path + "/" + dirname)
             for file in file_names:
-                gallery_emb = torch.load(gallery_path + "/" + dirname + "/" + file)
+                gallery_emb = torch.load(gallery_path + "/" + dirname + "/" + file).to(f'cuda:{device_ids[0]}')
                 sim = torch.cosine_similarity(query_emb, gallery_emb, dim=0)
                 if sim > max_sim:
                     max_sim = sim
@@ -255,13 +263,14 @@ def retrieve_visualize(img_path : str, emb_path : str, vis_path: str, class_dict
 
         query_imgname = query_file[:-3] + ".jpg"
         df.loc[df['img_name'] == query_imgname, 'correct'] = correct
-        stylianou(img_path + "/query/" + query_file[:-3] + ".jpg", img_path + "/gallery/" + max_file_path[:-3] + ".jpg", vis_path)
+        print("Query : {} | Top reference : {}".format(query_file, max_file_path))
+        stylianou(model, img_path + "/query/" + query_file[:-3] + ".jpg", img_path + "/gallery/" + max_file_path[:-3] + ".jpg", hmap_path, overlay_path, device_ids)
     
     df.to_csv(csv_path, sep='\t', encoding='utf-8')
 
 
 
-def compute_bboxes_from_heatmaps(hmap_path : str, img_path: str, vis_path: str, tau, area_frac):
+def compute_bboxes_from_heatmaps(hmap_path : str, img_path: str, box_path: str, tau, area_frac):
     '''
         Function to compute bounding boxes from heatmaps, overlay them on images and store the bboxes and heatmaps.
     '''
@@ -286,12 +295,13 @@ def compute_bboxes_from_heatmaps(hmap_path : str, img_path: str, vis_path: str, 
             bboxes.append([x, y, w, h])
             img_arr = cv2.rectangle(img_arr, (x, y), (x + w, y + h), (10, 255, 34), 2)
             
-        cv2.imwrite(vis_path + "/overlayed/{}".format(hmap_name), img_arr)
+        os.makedirs(box_path + "/overlayed", exist_ok=True)
+        cv2.imwrite(box_path + "/overlayed/{}".format(hmap_name), img_arr)
         bboxes = np.array(bboxes)
 
-        os.makedirs(vis_path + "/boxes", exist_ok=True)
+        os.makedirs(box_path + "/boxes", exist_ok=True)
         bbox_filename = hmap_name[:-4] + ".npy"
-        np.save(vis_path + "/boxes/{}".format(bbox_filename), bboxes)
+        np.save(box_path + "/boxes/{}".format(bbox_filename), bboxes)
 
 
 
@@ -329,17 +339,20 @@ def resize_bboxes(bbox, w, h):
     return [x, y, bw, bh]
 
 
-def compute_box_acc(hmap_path : str, img_path: str, vis_path: str, csv_path : str, bbox_path : str, tau = 0.5, delta = 0.5, area_frac = 0.1, is_loc = False) -> float:
+def compute_box_acc(hmap_path : str, img_path: str, box_path: str, csv_path : str, tau, delta = 0.5, area_frac = 0.1, is_loc = False) -> float:
     '''
         Function to compute mean IoU between ground truth and predicted bounding boxes.
     '''
 
     # First, compute the bounding boxes from heatmaps
-    compute_bboxes_from_heatmaps(hmap_path, img_path, vis_path, tau, area_frac)
+    compute_bboxes_from_heatmaps(hmap_path, img_path, box_path, tau, area_frac)
 
-    df = pd.read_csv(csv_path, sep='\t')
+    df = pd.read_csv(csv_path, sep='\t', encoding='utf-8')
+
+    bbox_path = box_path + "/boxes"
     bbox_names = os.listdir(bbox_path)
     mean_iou = 0
+
     for bbox_name in bbox_names:
         img_name = bbox_name[:-4] + ".jpg"
         gt_bbox_ = df[df['img_name'] == img_name][['gx', 'gy', 'gw', 'gh']].values[0]
@@ -360,21 +373,25 @@ def compute_box_acc(hmap_path : str, img_path: str, vis_path: str, csv_path : st
         else:
             max_iou = 1 if max_iou > delta else 0
         mean_iou += max_iou
-    return mean_iou / len(bbox_names)
+    box_acc = mean_iou / len(bbox_names)
+    # print("BoxAcc = {}".format(box_acc))
+    return box_acc
 
 
-def compute_max_box_acc(hmap_path : str, img_path: str, vis_path: str, csv_path : str, bbox_path : str, delta = 0.5, area_frac = 0.1, is_loc = False, step = 0.05) -> float:
+def compute_max_box_acc(hmap_path : str, img_path: str, box_path: str, csv_path : str, delta = 0.5, area_frac = 0.1, is_loc = False, step = 0.05):
     max_tau, max_box_acc = 0, 0
     metric = "Top-1 Localization" if is_loc else "MaxBoxAcc"
     # print("Computing {} for delta = {} ...".format(metric, delta))
 
     for tau in np.arange(0, 1, step):
-        box_acc = compute_box_acc(hmap_path, img_path, vis_path, csv_path, bbox_path, tau, delta, area_frac, is_loc)
-        # print("tau = {}, BoxAcc = {}".format(tau, box_acc))
+        box_acc = compute_box_acc(hmap_path, img_path, box_path, csv_path, tau, delta, area_frac, is_loc)
+        # print("tau = {}, metric = {}".format(tau, box_acc))
         if box_acc > max_box_acc:
             max_box_acc = box_acc
             max_tau = tau
     print("\n{} = {} at tau = {}".format(metric, max_box_acc, max_tau))    
     # print("Re-computing results for tau = {} ... ".format(max_tau))
-    compute_box_acc(hmap_path, img_path, vis_path, csv_path, bbox_path, max_tau, delta, area_frac, is_loc)
+    compute_box_acc(hmap_path, img_path, box_path, csv_path, max_tau, delta, area_frac, is_loc)
     # print("Done.")
+
+    return metric, max_box_acc
