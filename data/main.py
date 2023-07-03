@@ -1,13 +1,14 @@
 import sys
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import argparse as ap
 from collections import OrderedDict
 from utils import sample_triplets, ImageTripletDataset, TripletLoss, checkpoint, compute_and_save_embeddings, create_class_dict, create_annot_csv, retrieve_visualize, compute_max_box_acc
 from torch import optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from torchvision.models import resnet18
+from torchvision.models import resnet50, resnet18, resnet101, resnet152
 from collections import OrderedDict
 from tqdm._tqdm_notebook import tqdm
 import time
@@ -20,11 +21,11 @@ torch.manual_seed(42)
 parser = ap.ArgumentParser()
 parser.add_argument('--data_dir', type=str, default='dataset/CUB_200_2011')
 parser.add_argument('--retr_path', type=str, default='dataset/img_retrieval_CUB_200_2011')
-parser.add_argument('--emb_path', type=str, default='embeddings_CUB_200_2011')   ## CHANGE !!!
-parser.add_argument('--model_path', type=str, default='../models/resnet18_pretrained_best.pth')  ## CHANGE !!!
-parser.add_argument('--vis_path', type=str, default='visualizations_CUB_200_2011')  ## CHANGE !!!
+parser.add_argument('--emb_path', type=str, default='embeddings_CUB_200_2011_ft')   ## CHANGE !!!
+parser.add_argument('--model_path', type=str, default='../models/resnet50_finetuned_best.pth')  ## CHANGE !!!
+parser.add_argument('--vis_path', type=str, default='visualizations_CUB_200_2011_ft')  ## CHANGE !!!
 parser.add_argument('--num_triplets', type=int, default=10)
-parser.add_argument('--batch_size', type=int, default=64)
+parser.add_argument('--batch_size', type=int, default=32)
 parser.add_argument('--num_epochs', type=int, default=10)
 parser.add_argument('--lr', type=float, default=1e-4)
 parser.add_argument('--device', type=str, default='cuda:0,1')
@@ -34,6 +35,7 @@ parser.add_argument('--is_loc', type=bool, default=False)
 parser.add_argument('--step', type=float, default=0.05)
 parser.add_argument('--log_path', type=str, default='logs/lr.txt')
 parser.add_argument('--arg', type=str, default='lr')
+parser.add_argument('--is_frozen', type=bool, default=False)
 
 
 def create_logger(log_path, args):
@@ -84,9 +86,9 @@ def train(model, model_path, dataloader, optimizer, lr_scheduler, num_epochs, lo
             negative = negative.to(f'cuda:{device_ids[0]}')
 
             optimizer.zero_grad()
-            anchor_embedding = model(anchor).flatten()       # [512, ]
-            positive_embedding = model(positive).flatten()
-            negative_embedding = model(negative).flatten()
+            anchor_embedding = F.normalize(model(anchor), p=2, dim=1)
+            positive_embedding = F.normalize(model(positive), p=2, dim=1)
+            negative_embedding = F.normalize(model(negative), p=2, dim=1) 
 
             loss = loss_fn(anchor_embedding, positive_embedding, negative_embedding)
             '''
@@ -129,8 +131,35 @@ if __name__ == '__main__':
     batch_size = args.batch_size
     model_path = args.model_path
     log_path = args.log_path
+    is_frozen = args.is_frozen
 
     logger = create_logger(log_path, args)
+
+    # parse device string to get device ids
+    device_ids = [int(s) for s in (args.device.split(':')[-1]).split(',')]
+
+    # Load the pretrained ResNet50 model
+    pretrained_model = resnet18(pretrained=True)
+
+    dims = 512 # Dimensionality of the embedding space
+
+    # Create the finetuning model with the pretrained backbone
+    print("Putting model on GPUs {}...".format(device_ids))
+    finetuned_model = nn.Sequential(OrderedDict([*(list(pretrained_model.named_children())[:-1])]))
+    finetuned_model.add_module('flatten', nn.Flatten())  # Flatten the output of the last convolutional layer
+    finetuned_model.add_module('fc', nn.Linear(512, dims))  # Add the fully connected layer for retraining
+    print(finetuned_model.fc)
+    finetuned_model = nn.DataParallel(finetuned_model, device_ids=device_ids)
+    finetuned_model.to(f'cuda:{device_ids[0]}')
+
+    print("Finetuning the model...")
+    if is_frozen:
+        # Freeze the model parameters
+        for name, param in finetuned_model.module.named_parameters():
+            if 'fc' not in name:
+                param.requires_grad = False
+
+        print("Model parameters frozen!")
 
     # Sample image triplets
     print("Sampling image triplets...")
@@ -148,27 +177,16 @@ if __name__ == '__main__':
     # Create the data loader
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-    # parse device string to get device ids
-    device_ids = [int(s) for s in (args.device.split(':')[-1]).split(',')]
-
-    # Load the pretrained ResNet18 model
-    pretrained_model = resnet18(pretrained=True).eval()
-
-    # Create the finetuning model with the pretrained backbone
-    print("Creating the finetuning model and putting it on GPUs {}...".format(device_ids))
-    finetuned_model = nn.Sequential(OrderedDict([*(list(pretrained_model.named_children())[:-1])]))
-    finetuned_model = nn.DataParallel(finetuned_model, device_ids=device_ids)
-    finetuned_model.to(f'cuda:{device_ids[0]}')
-
     # Define the triplet loss
     triplet_loss = TripletLoss()
 
     # Define the optimizer and learning rate scheduler
     optimizer = optim.AdamW(finetuned_model.parameters(), lr=args.lr)
-    lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+    lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
 
     # Training loop
     num_epochs = args.num_epochs
+
 
     # Train the model
     print("Training the model...")
@@ -198,14 +216,14 @@ if __name__ == '__main__':
     print(f"Annotation time: {annot_end - annot_start} seconds")
 
     # Create a sub-model with the backbone and the average pooling layer for Stylianou approach
-    stylianou_model = nn.Sequential(OrderedDict([*(list(finetuned_model.module.named_children())[:-1])]))
+    stylianou_model = nn.Sequential(OrderedDict([*(list(finetuned_model.module.named_children())[:-3])]))       # -3 bcoz last 3 layers are avgpool, flatten, fc
     stylianou_model = nn.DataParallel(stylianou_model, device_ids=device_ids)
     stylianou_model.to(f'cuda:{device_ids[0]}')
 
     # Retrieve and visualize images
     vis_path = args.vis_path
     hmap_path = vis_path + "/heatmaps"
-    csv_path = data_dir + "/annotations.csv"
+    csv_path = data_dir + "/annotations_ft.csv"
     print("Retrieving and visualizing images...")
     retr_start = time.time()
     retrieve_visualize(stylianou_model, retr_path, emb_path, vis_path, class_dict, csv_path, device_ids)  # Retrieve and visualize images
@@ -227,7 +245,7 @@ if __name__ == '__main__':
     # Log the metric and accuracy
     with open(log_path, 'a') as f:
         logger.debug(f"{metric} : {acc}")
-    # print(f"{metric} : {acc}")
+    print(f"{metric} : {acc}")
 
     end = time.time()
     print(f"\nTotal time: {end - start} seconds")

@@ -26,8 +26,8 @@ def main(args):
         with (open(log_file_path, 'a')) as f:
 
             # Fine tune based on learning rate
-            for lr in np.arange(1e-3, 6e-3, 1e-3):
-                subprocess.run(['python', 'main.py', '--batch_size', '64', '--num_triplets', '1000', '--device', device_ids, '--lr', str(lr) , '--num_epochs', '10', '--log_path', log_file_path, '--arg', arg])
+            for lr in np.arange(5e-4, 1e-3, 1e-4):
+                subprocess.run(['python', 'main.py', '--batch_size', '64', '--num_triplets', '100', '--device', device_ids, '--lr', str(lr) , '--num_epochs', '10', '--log_path', log_file_path, '--arg', arg, '--is_loc', 'True'])
                 torch.cuda.empty_cache()
                 gc.collect()
 
@@ -49,9 +49,9 @@ def main(args):
         with (open(log_file_path, 'a')) as f:
 
             # Fine tune based on number of epochs
-            for ep in [5, 10, 15, 20]:
+            for ep in [10, 20, 40]:
                 print(f"\n\n##### NUMBER OF EPOCHS : {ep} ######\n")
-                subprocess.run(['python', 'main.py', '--num_triplets', '5', '--device', device_ids, '--num_epochs', str(ep), '--log_path', log_file_path, '--arg', arg])
+                subprocess.run(['python', 'main.py', '--lr', '1e-5', '--num_triplets', '100', '--device', device_ids, '--num_epochs', str(ep), '--log_path', log_file_path, '--arg', arg])
                 torch.cuda.empty_cache()
                 gc.collect()
 

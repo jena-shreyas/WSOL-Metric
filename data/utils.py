@@ -6,6 +6,7 @@ import cv2
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from image_ops import load_and_resize, combine_image_and_heatmap
 from similarity_ops import compute_spatial_similarity
 from torchvision.io.image import read_image, ImageReadMode
@@ -158,7 +159,7 @@ def compute_and_save_embeddings(model, inp_path : str, out_path : str, device_id
         img = read_image(query_path + "/" + file,mode=ImageReadMode.RGB).to(f'cuda:{device_ids[0]}')
         input_tensor = normalize(resize(img, (224, 224)) / 255., [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         out = model(input_tensor.unsqueeze(0))
-        output_tensor = out.flatten()
+        output_tensor = F.normalize(out, p=2, dim=1)
         torch.save(output_tensor, out_path + "/query/" + file[:-4] + ".pt")
 
     # compute embeddings for gallery images
@@ -171,7 +172,7 @@ def compute_and_save_embeddings(model, inp_path : str, out_path : str, device_id
             img = read_image(gallery_path + "/" + dirname + "/" + file,mode=ImageReadMode.RGB).to(f'cuda:{device_ids[0]}')
             input_tensor = normalize(resize(img, (224, 224)) / 255., [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             out = model(input_tensor.unsqueeze(0))
-            output_tensor = out.flatten() 
+            output_tensor = F.normalize(out, p=2, dim=1)
             torch.save(output_tensor, out_path + "/gallery/" + dirname + "/" + file[:-4] + ".pt")
 
 
@@ -234,16 +235,16 @@ def retrieve_visualize(model, img_path : str, emb_path : str, vis_path: str, cla
     for query_file in query_files:
         query_emb = torch.load(query_path + "/" + query_file).to(f'cuda:{device_ids[0]}')
         gallery_dirnames = os.listdir(gallery_path)
-        max_sim = -1
-        max_file_path = ""
+        min_dist = 1e12
+        min_file_path = ""
         for dirname in gallery_dirnames:
             file_names = os.listdir(gallery_path + "/" + dirname)
             for file in file_names:
                 gallery_emb = torch.load(gallery_path + "/" + dirname + "/" + file).to(f'cuda:{device_ids[0]}')
-                sim = torch.cosine_similarity(query_emb, gallery_emb, dim=0)
-                if sim > max_sim:
-                    max_sim = sim
-                    max_file_path = dirname + "/" + file
+                dist = torch.dist(query_emb, gallery_emb, p=2)           # CHANGE !!!
+                if dist < min_dist:
+                    min_dist = dist
+                    min_file_path = dirname + "/" + file
 
         correct = 0
 
@@ -251,11 +252,11 @@ def retrieve_visualize(model, img_path : str, emb_path : str, vis_path: str, cla
         try:
             query_class = '_'.join(query_file[:-3].split('_')[:-2])
             query_class_id = int(class_dict[query_class.lower()])
-            max_class = max_file_path.split('/')[0].split('.')[1]
-            max_class_id = int(class_dict[max_class.lower()])
+            min_class = min_file_path.split('/')[0].split('.')[1]
+            min_class_id = int(class_dict[min_class.lower()])
 
             
-            if query_class_id == max_class_id:
+            if query_class_id == min_class_id:
                 correct = 1
 
         except:
@@ -263,8 +264,8 @@ def retrieve_visualize(model, img_path : str, emb_path : str, vis_path: str, cla
 
         query_imgname = query_file[:-3] + ".jpg"
         df.loc[df['img_name'] == query_imgname, 'correct'] = correct
-        print("Query : {} | Top reference : {}".format(query_file, max_file_path))
-        stylianou(model, img_path + "/query/" + query_file[:-3] + ".jpg", img_path + "/gallery/" + max_file_path[:-3] + ".jpg", hmap_path, overlay_path, device_ids)
+        print("Query : {} | Top reference : {}".format(query_file, min_file_path))
+        stylianou(model, img_path + "/query/" + query_file[:-3] + ".jpg", img_path + "/gallery/" + min_file_path[:-3] + ".jpg", hmap_path, overlay_path, device_ids)
     
     df.to_csv(csv_path, sep='\t', encoding='utf-8')
 

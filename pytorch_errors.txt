@@ -1,7 +1,16 @@
 1) NameError: name '_C' is not defined
 Sol : factory resetting the runtime and then rerunning the import without any changes
 
-2) nvcc --version works but nvidia-smi gives "not installed"
+
+2) RuntimeError: CUDA error: CUBLAS_STATUS_INVALID_VALUE when calling `cublasSgemm( handle, opa, opb, m, n, k, &alpha, a, lda, b, ldb, &beta, c, ldc)`
+Sol : Dimension mismatch between the input tensors. Check the dimensions of the input tensors and the model parameters.
+
+		One possible solution :
+
+		Before replacing last fc layer of ResNet models, add a flatten layer first and then define nn.Linear layer with the required number of output features.
+
+
+3) nvcc --version works but nvidia-smi gives "not installed"
 Sol : 
 
 	Run the following commands to remove everything NVIDIA, and then install the NVIDIA drivers : 
@@ -74,3 +83,47 @@ Sol :
 NOTE : 
 
 	For 100 triplets, tried out lr = [1e-3 to 5e-3], the accuracy dropped a lot; seems it is only OVERFITTING MORE GIVEN ONLY 100 triplets.
+	Have to try with bigger num_triplets (i.e. train set size) given the same learning rates. 
+	
+    (First, see if the accuracy improves for num_triplets = 1000 compared to num_triplets = 100 for the same learning rates; this would mean the model is now NOT OVERFITTING and learning better with more data. Then, try it with the same lr for higher value of num_triplets, say 10000.)
+    
+    
+    
+NOTE : 
+
+	Tried out finetuning model by keeping only layer4 trainable and rest frozen; for lr = 3e-5, num_triples = 100, almost same acc = 0.465 (0.46 for all trainable, 0.465 for first layers frozen) 
+	(Maybe this means that any change in the performance for these finetuned models was only because of layer4 weights being tuned; the lower layer weights were not even changed during this finetuning !!)
+	
+	
+NOTE : 
+
+	(num_triples : 100)
+
+		All trainable 			Some frozen
+	
+lr	3e-5	0.46				0.465
+	1e-4	0.465				0.46
+	
+	
+	
+THE BIG QUESTION :
+
+ Why is the finetuned model performing worse than the pretrained model ? 
+ 
+ 
+ Sol : 
+ 
+ 	Maybe all this while, bcoz of the very small finetuning triples dataset (100-1000 compared to 2 million) and the relative complexity of the model (large number of parameters), the model is overfitting each time ! (since too many params and very less data, equivalent to too many unknowns and too less equations - with a sufficiently high lr, the model quickly shifts to another set of almost similar parameters that can overfit the small train triples dataset but fail to generalize well to the testing conditions.
+ 	
+ 	
+Tasks :
+
+1) Figure out some way to bring finetuned model performance above the pretrained model performance.
+2) Then, look for ways to improve performance by finetuning other parameters.
+
+
+
+NOTE : Trying to finetune ResNet18 on system PC works but doing the same for ResNet50 crashes even with a single 12 GB GPU in server.
+This is bcoz resnet50 is a larger model and needs more compute resources.
+
+	
