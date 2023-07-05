@@ -1,0 +1,38 @@
+Model : ResNet18
+
+Pretrained : 
+
+1) MaxBoxAcc : 0.545
+2) Top1-Localization : 0.2
+
+Finetuned : 
+
+num_triples : 100
+
+##### LEARNING RATE : 0.001 ######
+
+2023-06-21 23:31:03,362 - DEBUG - MaxBoxAcc : 0.49
+
+##### LEARNING RATE : 0.0005 ######
+
+2023-06-21 23:41:23,230 - DEBUG - MaxBoxAcc : 0.49
+2023-06-21 23:41:24,744 - DEBUG - 
+
+##### LEARNING RATE : 0.0006000000000000001 ######
+
+2023-06-21 23:47:36,824 - DEBUG - MaxBoxAcc : 0.53
+2023-06-21 23:47:38,342 - DEBUG - 
+
+##### LEARNING RATE : 0.0007000000000000001 ######
+
+2023-06-21 23:53:43,410 - DEBUG - MaxBoxAcc : 0.525
+2023-06-21 23:53:44,911 - DEBUG - 
+
+##### LEARNING RATE : 0.0008000000000000001 ######
+
+2023-06-21 23:59:56,965 - DEBUG - MaxBoxAcc : 0.515
+2023-06-21 23:59:58,566 - DEBUG - 
+
+##### LEARNING RATE : 0.0009000000000000002 ######
+
+2023-06-22 00:06:15,791 - DEBUG - MaxBoxAcc : 0.5

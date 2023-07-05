@@ -1,0 +1,19 @@
+lr : 1e-5; finetuning all layers with last 1000 dim fc layer replaced by 512-dim fc layer
+for producing embeddings instead of probabilities
+num_triplets : 100
+
+2023-06-28 00:02:49,296 - DEBUG - 
+
+##### NUMBER OF EPOCHS : 10 ######
+
+2023-06-28 00:08:58,133 - DEBUG - MaxBoxAcc : 0.425
+2023-06-28 00:08:59,550 - DEBUG - 
+
+##### NUMBER OF EPOCHS : 20 ######
+
+2023-06-28 00:18:33,114 - DEBUG - MaxBoxAcc : 0.44
+2023-06-28 00:18:34,538 - DEBUG - 
+
+##### NUMBER OF EPOCHS : 40 ######
+
+2023-06-28 00:35:20,990 - DEBUG - MaxBoxAcc : 0.42

@@ -1,3 +1,15 @@
 1) Why do Siamese nets need to have two identical networks ? Can't the same feature representation computation be done using just one of them, and the resulting metric finding done likewise ?
+
 2) In FCAMs, won't the pixel-level weak supervision be too slow for training, especially in videos with lots of frames ?
+
 3) Suppose that the CNN, in order to detect a cat, looks for features like "pointed ears" among others - and assume that one of the last feature maps is dedicated to localizing such pointed ear occurrences in the image. Now, if the image is such that the "pointed ear" is present in an entirely different position than the expected natural position (say, the pointed ear in our image lies at some point distant from the cat's head) - the last feature map for pointed ear still holds positional information regarding its location - but on performing GAP this info is lost, so won't the model tend to incorrectly classify the image as a cat even though the ear is out of place! Isn't this an issue with CAMs ?
+
+4) Side qn : 
+Why can't CNNs be used as is for image segmentation ? Why do we need to upsample the O/P of the downsampled layers of CNN - why doesn't just some upscaling technique work here ?
+
+5) Opinion on Chen_WACV_2020 paper :
+
+- The idea seems interesting; probably the most relevant work I have seen so far on what we aim to do for person Re-ID.
+- The concept of storing weights created from training images and using the nearest neighbour approach to find most relevant train images' weights solves Stylianou's issue of using two images for visualisation - only the test image will do.
+- There are still some issues - like in person Re-ID, there are way more classes than in traditional datasets like CUB-200 with only 200 classes (though the issue of less number of examples per class, usually seen in classification networks, was not going to be much of a problem anyway for embedding nets as you can create multiple triples with even few examples per class). The main issue here might be the inefficient utilization of the embedding space (as explained in Sanakoyeu_CVPR_2019; maybe we can somehow incorporate their method of splitting the embedding space into multiple partitions and using separate learners for each such space.)
+- A much bigger problem - no official code !

@@ -1,7 +1,16 @@
 1) NameError: name '_C' is not defined
 Sol : factory resetting the runtime and then rerunning the import without any changes
 
-2) nvcc --version works but nvidia-smi gives "not installed"
+
+2) RuntimeError: CUDA error: CUBLAS_STATUS_INVALID_VALUE when calling `cublasSgemm( handle, opa, opb, m, n, k, &alpha, a, lda, b, ldb, &beta, c, ldc)`
+Sol : Dimension mismatch between the input tensors. Check the dimensions of the input tensors and the model parameters.
+
+		One possible solution :
+
+		Before replacing last fc layer of ResNet models, add a flatten layer first and then define nn.Linear layer with the required number of output features.
+
+
+3) nvcc --version works but nvidia-smi gives "not installed"
 Sol : 
 
 	Run the following commands to remove everything NVIDIA, and then install the NVIDIA drivers : 
@@ -18,3 +27,103 @@ Sol :
 	    sudo apt install nvidia-cuda-toolkit
 	    
 	Hopefully, both nvidia-smi and nvcc --version will work after that.
+
+
+3) How to distribute code across multiple GPUs using nn.DataParallel ?
+
+Sol :
+
+	Setup the model in the following manner :
+	
+	device_ids = [0, 1]			# specifies the list of GPUs that you'll use
+
+	model = resnet18(pretrained=True)
+	model = nn.DataParallel(model, device_ids=device_ids)	# pass the GPU list to the DataParallel method
+	
+	# next, by convention, all tensors and model itself must be dumped on the first device in the list, which acts as a staging area - it distibutes the load to other GPUs and accumulates their results and sends it back.
+	
+	model.to(f'cuda:{device_ids[0]}')
+	
+	Now, for any input tensor passed to the model, dump it to the 0th device as well :	
+	input_tensor.to(f'cuda:{device_ids[0]}')
+	
+	
+	
+4) The same code when run on multiple GPUs (1 Titan Xp, 2 Geforce GTX 1080) using nn.DataParallel() :
+
+	a) takes more time (around x2) ;
+	b) gives worse performance (in terms of accuracy)
+	
+   compared to when run on a single Quadro M4000 GPU. Why ?
+   
+   
+Sol : 
+
+	a) A possible explanation for more time is that in the DataParallel paradigm, the data needs to be scattered/distributed across multiple GPUs (devices) and recollected back again to the main GPU. This distribution and gathering involves inter-GPU communication which takes time. You can try out DistributedDataParallel paradigm, which makes copies of the same model using separate processes on separate GPUs and feeds each of them separate batches of data. Then it takes the gradients for each parameter for each process (on a separate GPU) and averages them, and updates/reduces each such copy of parameters based on this averaged out gradient.
+	
+	b) Can't be said for sure, some complex reason, have to figure it out.
+	
+	
+	
+5) Finetuning on 100 triples with lr = 1e-3 gives an accuracy of 0.24, though training loss decreases to 0.09 after 10 epochs. A similar accuracy of 0.22 prolly happens when trying to finetune on 10000 triplets with a very small lr = 3e-5. 
+
+
+
+Sol : 
+
+   In the first case, since 100 triplets is a very small number compared to 2e6 (the total possible number of triplets according to the sampling technique used), the model OVERFITS due to the sufficiently high lr and small training set. 
+   
+   In the 2nd case though, it seems that the model UNDERFITS with the comparatively small learning rate. 
+   Prolly, the large training dataset should be complemented by a higher lr (in the order of 1e-4 or 1e-3 maybe ?). Also, trying bs = 128 on NV Quadro (8 GB) crashes, but Turing has higher memory GPUs (can try higher batch sizes then, like 128).
+
+	(LET'S PLAY ABOUT WITH LR : 1e-4 for the moment; will need to push up num_triplets and lr proportionally later.)
+	
+	
+	
+NOTE : 
+
+	For 100 triplets, tried out lr = [1e-3 to 5e-3], the accuracy dropped a lot; seems it is only OVERFITTING MORE GIVEN ONLY 100 triplets.
+	Have to try with bigger num_triplets (i.e. train set size) given the same learning rates. 
+	
+    (First, see if the accuracy improves for num_triplets = 1000 compared to num_triplets = 100 for the same learning rates; this would mean the model is now NOT OVERFITTING and learning better with more data. Then, try it with the same lr for higher value of num_triplets, say 10000.)
+    
+    
+    
+NOTE : 
+
+	Tried out finetuning model by keeping only layer4 trainable and rest frozen; for lr = 3e-5, num_triples = 100, almost same acc = 0.465 (0.46 for all trainable, 0.465 for first layers frozen) 
+	(Maybe this means that any change in the performance for these finetuned models was only because of layer4 weights being tuned; the lower layer weights were not even changed during this finetuning !!)
+	
+	
+NOTE : 
+
+	(num_triples : 100)
+
+		All trainable 			Some frozen
+	
+lr	3e-5	0.46				0.465
+	1e-4	0.465				0.46
+	
+	
+	
+THE BIG QUESTION :
+
+ Why is the finetuned model performing worse than the pretrained model ? 
+ 
+ 
+ Sol : 
+ 
+ 	Maybe all this while, bcoz of the very small finetuning triples dataset (100-1000 compared to 2 million) and the relative complexity of the model (large number of parameters), the model is overfitting each time ! (since too many params and very less data, equivalent to too many unknowns and too less equations - with a sufficiently high lr, the model quickly shifts to another set of almost similar parameters that can overfit the small train triples dataset but fail to generalize well to the testing conditions.
+ 	
+ 	
+Tasks :
+
+1) Figure out some way to bring finetuned model performance above the pretrained model performance.
+2) Then, look for ways to improve performance by finetuning other parameters.
+
+
+
+NOTE : Trying to finetune ResNet18 on system PC works but doing the same for ResNet50 crashes even with a single 12 GB GPU in server.
+This is bcoz resnet50 is a larger model and needs more compute resources.
+
+	

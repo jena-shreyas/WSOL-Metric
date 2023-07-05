@@ -1,0 +1,13 @@
+Stylianou :
+
+1) Use CNN model to create image embeddings 
+2) Compute cosine similarity between query embeddings and embeddings of reference images using CUB dataset
+3) Find top-1 image for each query, compute visualization of similar regions in query and top-1 retrieved reference using Stylianou
+
+Chen :
+
+1) Setup Chen's code
+
+Left : 
+
+1) Setup F-CAM
