@@ -4,3 +4,5 @@ data/metadata
 code/Similarity-Visualization/data/
 code/fcam-wsol/
 models/
+code/Black-vis/data/
+code/Black-vis/weights/
